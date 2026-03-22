@@ -1,13 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios');
 
 const DB_PATH = path.join(__dirname, 'db.json');
 
 class BobAiService {
     constructor() {
-        this.apiKey = process.env.GEMINI_API_KEY;
-        this.genAI = this.apiKey ? new GoogleGenerativeAI(this.apiKey) : null;
+        this.apiKey = process.env.GROQ_API_KEY;
         this.sessions = {};
     }
 
@@ -26,14 +25,9 @@ class BobAiService {
     }
 
     async generateResponse(question, sessionId = 'default') {
-        if (!this.genAI) {
-            return "🚨 **ERRO DO SISTEMA:** A chave *GEMINI_API_KEY* não foi configurada no `.env` do servidor. O Cérebro do BOB está offline. Por favor, adicione a API Key do Google AI Studio no ambiente.";
+        if (!this.apiKey) {
+            return "🚨 **ERRO DO SISTEMA:** A chave *GROQ_API_KEY* não foi configurada no `.env` do servidor (Render). O Cérebro do BOB está offline. Por favor, crie a chave no Groq Cloud e adicione a variável.";
         }
-
-        const model = this.genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash-latest",
-            generationConfig: { temperature: 0.72 }
-        });
 
         const kbData = this._getKnowledgeBaseString();
         const currentHour = new Date().getHours();
@@ -53,7 +47,7 @@ class BobAiService {
 7. Agregação de Valor (Formatos Múltiplos): Sugira instintivamente formatos complementares ou melhores do que o cliente pediu. Por ex, se pedir vídeo de 30s, sugira fazer também pílulas de 15s para os Stories. Aumente o escopo sendo um mega estrategista e parceiro!
 8. Proibição de Roteiros Completos: NUNCA crie o roteiro, script ou storyboard inteiro para o usuário. Ofereça apenas a "ponta do iceberg", um escopo de rascunho criativo (um "teaser" das ideias). Instigue-o comercialmente dizendo que o time humano de diretores da Arthas e do Lucas vai moldar o roteiro genial com ele pessoalmente no fechamento.
 
- ${callToAction}
+${callToAction}
 
 Opcional - Base Histórica da Empresa (Respostas de SAC):
 --- CONHECIMENTO CADASTRADO NO PAINEL ---
@@ -65,29 +59,30 @@ ${kbData}
             this.sessions[sessionId] = [];
         }
 
-        const dynamicHistory = [
-            {
-                role: "user",
-                parts: [{ text: systemPrompt + "\n\nTudo compreendido? Você é agora o BOB da Arthas." }],
-            },
-            {
-                role: "model",
-                parts: [{ text: "Estou 100% incorporado. Responderei de forma EXTREMAMENTE CURTA e ágil (estilo chat de mensagem rápida), sem perder a empatia e a energia. Jamais citarei equipamentos técnicos, sugerirei formatos extras em poucas palavras, não farei textões, limitarei emojis a quase zero, farei perguntas fáceis e diretas ao invés de cobrar roteiros enormes, e enviarei o código estruturado [WHATSAPP_LINK...] para o sistema gerar o botão preenchido magicamente. Manda a claquete!" }],
-            },
-            ...this.sessions[sessionId]
+        const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "assistant", content: "Estou 100% incorporado. Responderei de forma EXTREMAMENTE CURTA e ágil (estilo chat de mensagem rápida), sem perder a empatia e a energia. Jamais citarei equipamentos técnicos, sugerirei formatos extras em poucas palavras, não farei textões, limitarei emojis a quase zero, farei perguntas fáceis e diretas ao invés de cobrar roteiros enormes, e enviarei o código estruturado [WHATSAPP_LINK...] para o sistema gerar o botão preenchido magicamente. Manda a claquete!" },
+            ...this.sessions[sessionId],
+            { role: "user", content: question }
         ];
 
-        const chat = model.startChat({
-            history: dynamicHistory
-        });
-
         try {
-            const result = await chat.sendMessage(question);
-            let response = result.response.text();
+            const result = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+                model: "llama-3.3-70b-versatile",
+                messages: messages,
+                temperature: 0.7
+            }, {
+                headers: {
+                    "Authorization": `Bearer ${this.apiKey}`,
+                    "Content-Type": "application/json"
+                }
+            });
+
+            let response = result.data.choices[0].message.content;
             
             // Grava memória da conversa
-            this.sessions[sessionId].push({ role: "user", parts: [{ text: question }] });
-            this.sessions[sessionId].push({ role: "model", parts: [{ text: response }] });
+            this.sessions[sessionId].push({ role: "user", content: question });
+            this.sessions[sessionId].push({ role: "assistant", content: response });
             if (this.sessions[sessionId].length > 40) {
                 this.sessions[sessionId] = this.sessions[sessionId].slice(-40); // Preserva apenas histórico recente
             }
@@ -111,7 +106,7 @@ ${kbData}
             
             return response;
         } catch (error) {
-            console.error("Gemini API Error:", error);
+            console.error("Groq API Error:", error.response?.data || error.message);
             return "Ihh, os cabos do servidor soltaram faísca! Deu um mini crash na matriz e não consegui conectar. Tenta perguntar de novo? 🎬";
         }
     }
