@@ -6,7 +6,7 @@ const DB_PATH = path.join(__dirname, 'db.json');
 
 class BobAiService {
     constructor() {
-        this.apiKey = process.env.GROQ_API_KEY;
+        this.apiKey = process.env.OPENAI_API_KEY;
         this.sessions = {};
     }
 
@@ -26,7 +26,7 @@ class BobAiService {
 
     async generateResponse(question, sessionId = 'default') {
         if (!this.apiKey) {
-            return "🚨 **ERRO DO SISTEMA:** A chave *GROQ_API_KEY* não foi configurada no `.env` do servidor (Render). O Cérebro do BOB está offline. Por favor, crie a chave no Groq Cloud e adicione a variável.";
+            return "🚨 **ERRO DO SISTEMA:** A chave *OPENAI_API_KEY* não foi configurada no Render. O Cérebro do BOB está offline. Por favor, adicione a chave no platform.openai.com.";
         }
 
         const kbData = this._getKnowledgeBaseString();
@@ -67,8 +67,8 @@ ${kbData}
         ];
 
         try {
-            const result = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                model: "llama-3.3-70b-versatile",
+            const result = await axios.post('https://api.openai.com/v1/chat/completions', {
+                model: "gpt-4o-mini",
                 messages: messages,
                 temperature: 0.7
             }, {
@@ -106,7 +106,7 @@ ${kbData}
             
             return response;
         } catch (error) {
-            console.error("Groq API Error:", error.response?.data || error.message);
+            console.error("OpenAI API Error:", error.response?.data || error.message);
             return "Ihh, os cabos do servidor soltaram faísca! Deu um mini crash na matriz e não consegui conectar. Tenta perguntar de novo? 🎬";
         }
     }
