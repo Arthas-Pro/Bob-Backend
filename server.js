@@ -7,7 +7,7 @@ const axios = require('axios');
 const whatsappTimers = {};
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased limit for audio payload
 app.use(cors()); // Allow frontend widget to access API
 
 const PORT = process.env.PORT || 3000;
@@ -27,6 +27,54 @@ app.post('/api/chat/web', async (req, res) => {
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ---------------------------
+// 1.5. Audio Web Widget Integration (Whisper)
+// ---------------------------
+app.post('/api/chat/audio', async (req, res) => {
+    try {
+        const { audioBase64, sessionId } = req.body;
+        if (!audioBase64) return res.status(400).json({ error: "Audio base64 is required" });
+
+        // Decode Base64 to Buffer natively
+        const audioBuffer = Buffer.from(audioBase64.replace(/^data:audio\/\w+;base64,/, ""), 'base64');
+        const audioBlob = new Blob([audioBuffer], { type: 'audio/webm' });
+
+        // Construct FormData for OpenAI Whisper
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'audio.webm');
+        formData.append('model', 'whisper-1');
+
+        const openAiKey = process.env.OPENAI_API_KEY;
+        if (!openAiKey) return res.status(500).json({ error: "Missing OpenAI API Key" });
+
+        // Call Whisper API using Native Fetch
+        const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${openAiKey}`
+            },
+            body: formData
+        });
+
+        const whisperData = await whisperRes.json();
+        if (!whisperRes.ok) {
+            console.error("Whisper Error:", whisperData);
+            return res.status(500).json({ error: "Audio transcription failed" });
+        }
+
+        const transcriptionText = whisperData.text || "(Áudio vazio)";
+        console.log(`[AUDIO TRANSCRITO]: ${transcriptionText}`);
+
+        // Relay the transcription exactly as if it was text typed by the user to the bot engine
+        const responseText = await aiService.generateResponse(transcriptionText, sessionId || 'default-web-audio');
+        res.json({ transcription: transcriptionText, reply: responseText });
+
+    } catch (e) {
+        console.error("Audio Pipeline Error:", e);
+        res.status(500).json({ error: "Internal Server Error in Audio Pipeline" });
     }
 });
 
