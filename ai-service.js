@@ -31,7 +31,7 @@ class BobAiService {
         }
 
         const model = this.genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash",
+            model: "gemini-1.5-flash-latest",
             generationConfig: { temperature: 0.72 }
         });
 
