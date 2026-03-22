@@ -160,7 +160,7 @@ app.delete('/api/kb/:index', (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🎬 BOB Central Server running on port ${PORT}`);
     console.log(`- Web Widget Endpoint: POST http://localhost:${PORT}/api/chat/web`);
     console.log(`- WhatsApp Webhook Endpoint: POST http://localhost:${PORT}/webhook/whatsapp`);
