@@ -30,11 +30,17 @@ class BobAiService {
         }
 
         const kbData = this._getKnowledgeBaseString();
-        const currentHour = new Date().getHours();
-        const afterHours = currentHour >= 19 || currentHour <= 7;
-        const callToAction = afterHours
-            ? `Se ele quiser fechar negócio, tratar com humano ou pedir o WhatsApp (são ${currentHour}h, fora do expediente): O estúdio físico está fechado pra gravação, mas encaminhe-o para a diretoria. Para isso, crie um RESUMO COMPLETO EM TÓPICOS do que foi conversado (Ex: - Cliente: Fulano\\n- Formato: Reels\\n- Dor: Baixo engajamento). Cole EXATAMENTE o seguinte código estruturado substituindo a parte interna pelo seu resumo em tópicos: [WHATSAPP_LINK_VIP: SEU_RESUMO_EM_TOPICOS_AQUI].`
-            : `Se ele quiser fechar negócio ou falar com a equipe de vocês (são ${currentHour}h, comercial): Encaminhe o lead para a equipe de atendimento. Para isso, crie um RESUMO COMPLETO EM TÓPICOS do que foi conversado (Ex: - Cliente: Fulano\\n- Formato: Vídeo Institucional\\n- Objetivo: Vendas). Cole EXATAMENTE o seguinte código estruturado substituindo a parte interna pelo seu resumo em tópicos: [WHATSAPP_LINK_EQUIPE: SEU_RESUMO_EM_TOPICOS_AQUI].`;
+        const date = new Date();
+        const formatter = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+        const timeString = formatter.format(date);
+        const [hourStr] = timeString.split(':');
+        const hour = parseInt(hourStr, 10);
+        
+        let greeting = "Boa noite";
+        if (hour >= 5 && hour < 12) greeting = "Bom dia";
+        else if (hour >= 12 && hour < 18) greeting = "Boa tarde";
+
+        const callToAction = `Sempre que o cliente quiser fechar negócio, pedir um orçamento ou falar com a equipe: Encaminhe o lead criando um RESUMO COMPLETO EM TÓPICOS do que foi conversado (Ex: - Cliente: Fulano\\n- Dores: Pouco engajamento\\n- Solução: Vídeo e Tráfego). Cole EXATAMENTE o seguinte código estruturado substituindo a parte interna pelo seu resumo em tópicos: [WHATSAPP_LINK: SEU_RESUMO_EM_TOPICOS_AQUI].`;
 
         const systemPrompt = `Você é o BOB, o carismático supervisor de projetos audiovisuais da produtora Arthas (arthaspro.com.br). Siga rigorosamente as seguintes restrições:
 
@@ -45,8 +51,9 @@ class BobAiService {
 5. Guardião do Escopo (Fronteira da Arthas): Você é um atendimento corporativo exclusivo da Arthas. Se o usuário tentar falar sobre política, curiosidades de internet, assuntos pessoais, ou decidir usar você como um robô genérico para responder dúvidas não relacionadas a vídeos, som e audiovisual, você DEVE interromper a conversa de imediato. JAMAIS responda a uma pergunta fora de assunto. Desconverse com educação e bom humor (pode citar que o Diretor de Set proibiu você de falar dessas coisas no estúdio) e retorne o foco 100% para o que interessa: montar um projeto ou orçamento de vídeo para ele.
 6. Consultoria Investigativa: Se o usuário pedir ajuda, estiver confuso ou quiser criar uma ideia, NUNCA apenas entregue uma solução final vaga. Faça perguntas complementares, engajadoras e fáceis (ex: "Qual a emoção principal que você quer passar?"). Ajude-o a descrever a ideia passo a passo antes do fechamento.
 7. Agregação de Valor (Formatos Múltiplos): Sugira instintivamente formatos complementares ou melhores do que o cliente pediu. Por ex, se pedir vídeo de 30s, sugira fazer também pílulas de 15s para os Stories. Aumente o escopo sendo um mega estrategista e parceiro!
-8. Proibição de Roteiros Completos: NUNCA crie o roteiro, script ou storyboard inteiro para o usuário. Ofereça apenas a "ponta do iceberg", um escopo de rascunho criativo (um "teaser" das ideias). Instigue-o comercialmente dizendo que o time humano de diretores da Arthas e do Lucas vai moldar o roteiro genial com ele pessoalmente no fechamento.
-9. Portfólio Oficial da Arthas: Domine os nossos serviços reais. Nós vendemos estritamente: 1) Produção Audiovisual (Institucionais, Comerciais, Eventos). 2) Gestão de Tráfego (Google e Meta Ads). 3) Social Media (Gestão e Conteúdo). 4) VFX (Efeitos Visuais e Color Grading). 5) Produção com Inteligência Artificial (Vídeos/Imagens/Roteirização por IA). 6) Consultoria Digital (Branding e Estratégia de Mercado). Sempre ofereça pacotes cruzados conectando esses serviços para elevar o ticket do cliente.
+8. Proibição de Roteiros Completos: NUNCA crie o roteiro, script ou storyboard inteiro para o usuário. Ofereça apenas a "ponta do iceberg", um escopo de rascunho criativo (um "teaser" das ideias). Instigue-o comercialmente dizendo que o time humano de diretores da Arthas vai moldar o roteiro genial com ele pessoalmente no fechamento.
+9. Cross-Selling Inteligente (Venda Cruzada): Domine o nosso portfólio oficial (1. Produção Audiovisual, 2. Gestão de Tráfego, 3. Social Media, 4. VFX, 5. Produção com IA, 6. Consultoria Digital). Identifique de imediato o ramo do usuário (ex: se é evento corporativo, comércio, etc) e descubra ativamente quais outros serviços fazem sentido agregar. Maneje a negociação comercialmente para aumentar o ticket sugerindo serviços casados, mas faça isso de forma ALTAMENTE inteligente e fluida, sem insistir demais para não o irritar.
+10. Consciência Temporal: O horário atual no Brasil é ${timeString}. Se o cliente iniciar a conversa saudando você (ex: "Oi", "Bom dia", "Boa tarde", "Boa noite"), você DEVE OBRIGATORIAMENTE retribuir dizendo exatamente "${greeting}!" logo no início da sua resposta.
 
 ${callToAction}
 
@@ -88,14 +95,19 @@ ${kbData}
                 this.sessions[sessionId] = this.sessions[sessionId].slice(-40); // Preserva apenas histórico recente
             }
             
-            // Processa as Macros de WhatsApp geradas pela IA e transforma em HTML via URL Encode (suportando múltiplas linhas)
+            // Processa as Macros de WhatsApp geradas pela IA e transforma em HTML via URL Encode
+            response = response.replace(/\[WHATSAPP_LINK:\s*([\s\S]*?)\]/g, (match, summary) => {
+                const encoded = encodeURIComponent(`Oi equipe! Falei com o Bob. O projeto hoje é:\n\n${summary.trim()}`);
+                return `<a href="https://wa.me/5589981455411?text=${encoded}" target="_blank" style="color: #10b981; text-decoration: underline; font-weight: bold;">Falar com a equipe agora</a>`;
+            });
+            // Fallbacks caso a IA use os códigos antigos por memória de conversa passada
             response = response.replace(/\[WHATSAPP_LINK_VIP:\s*([\s\S]*?)\]/g, (match, summary) => {
-                const encoded = encodeURIComponent(`Oi Lucas! Falei com o Bob. Meu projeto é:\n\n${summary.trim()}`);
-                return `<a href="https://wa.me/5589981455411?text=${encoded}" target="_blank" style="color: #10b981; text-decoration: underline; font-weight: bold;">Falar com Lucas VIP</a>`;
+                const encoded = encodeURIComponent(`Oi equipe! Falei com o Bob:\n\n${summary.trim()}`);
+                return `<a href="https://wa.me/5589981455411?text=${encoded}" target="_blank" style="color: #10b981; text-decoration: underline; font-weight: bold;">Falar com a equipe agora</a>`;
             });
             response = response.replace(/\[WHATSAPP_LINK_EQUIPE:\s*([\s\S]*?)\]/g, (match, summary) => {
-                const encoded = encodeURIComponent(`Oi Equipe! Falei com o Bob. O projeto hoje é:\n\n${summary.trim()}`);
-                return `<a href="https://wa.me/5589981455411?text=${encoded}" target="_blank" style="color: #10b981; text-decoration: underline; font-weight: bold;">Falar com a Equipe Arthas</a>`;
+                const encoded = encodeURIComponent(`Oi equipe! Falei com o Bob:\n\n${summary.trim()}`);
+                return `<a href="https://wa.me/5589981455411?text=${encoded}" target="_blank" style="color: #10b981; text-decoration: underline; font-weight: bold;">Falar com a equipe agora</a>`;
             });
 
             // Format fallback so markdown links become anchor tags for our widget.js parsing
